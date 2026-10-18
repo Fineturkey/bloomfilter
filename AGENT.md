@@ -1,5 +1,84 @@
 # Rules for coding agents and contributors
 
+## Project context: what we are building
+
+This repository implements Eugene Gu and Lance Tapang's CSPC 4660 Database
+project, *Optimizing Data Transfer in Distributed Databases* (proposal dated
+September 23, 2026). This context was taken from the supplied
+`project_proposal-1-3.pdf`, especially Sections 2-4. The proposal is project
+background, not a separate set of agent instructions or permission to complete
+all planned work.
+
+The research question is how much Bloom-filter joins reduce unnecessary data
+transfer compared with sending the full remote table, and what effect this has
+on measured query performance. Improvements are hypotheses to evaluate, not
+guarantees: constructing, sending and checking a filter adds work, especially
+when most remote records already match.
+
+### Intended architecture and join flow
+
+- Use Python with two separate SQLite databases accessed by independent
+  processes. Exchange serialized messages through sockets.
+- Each table initially has unique, non-null integer join keys and a payload
+  column. Duplicate-key and null-key semantics are outside this initial scope.
+- Build compatible Bloom filters from both sites' join keys, using identical
+  bit counts, hash counts and hash functions.
+- Send the first site's filter to the second site and combine the two filters
+  with bitwise AND. Send back only remote records passing the combined filter.
+- Load candidates into a temporary table at the first site, then perform an
+  exact SQL join. Keep the final result at that first site for every method.
+- Bloom membership means definitely absent or possibly present. False positives
+  may cause extra transfers, but the final exact join must remove them. Filters
+  must never reject a true matching key.
+
+### Methods and paper scope
+
+Compare full remote-table transfer, a fixed filter of ten bits per key, and a
+cost-selected filter. All three must share the same dataset, serialization,
+join destination and SQL result projection.
+
+The reference is Ramesh, Papapetrou and Siberski, *Optimizing Distributed Joins
+with Bloom Filters*, ICDCIT 2008, LNCS 5375, pp. 145-156,
+DOI: https://doi.org/10.1007/978-3-540-89737-8_15.
+The core implementation scope is Section 4.1's optimized Bloomjoin, including
+filter sizing. All other schemes and the complete optimizer are outside the
+core scope; the proposal mentions them only as possible time-permitting
+extensions. Do not implement them without a separately assigned task.
+
+Read Section 4.1 before changing its model. Distinguish the paper's transfer
+equation from generic false-positive sizing and from the proposal's explanatory
+build/send/check cost breakdown. The paper also uses join selectivity: do not
+silently infer it from cardinalities and widths, or leak the reference result
+into sizing. Document assumptions, units and adaptations. See
+[cost-sizing.md](docs/cost-sizing.md) for the current model and metadata details.
+
+### Evaluation plan
+
+- Primary metric: total application bytes exchanged, including filters,
+  configuration, sizing metadata and records. Include message framing and count
+  each byte once across both directions.
+- Also record elapsed query time, filter construction time, nonmatching records
+  transmitted, and variation across repeated runs. Timing includes filtering,
+  serialization, transfer and the final join; follow the boundaries below.
+- Verify every result against the complete reference SQL join over locally
+  combined data. Cover empty tables, disjoint keys, partial and complete overlap.
+- Generate reproducible synthetic data with fixed random seeds. Proposed larger
+  sizes are 10,000 / 100,000 / 1,000,000 rows per table, subject to memory limits.
+  Remote-key overlap values are 0% / 1% / 10% / 50% / 100%; payload sizes are
+  32 / 128 / 512 bytes. Vary one factor at a time around a baseline.
+- Begin with small correctness tests and smoke runs. These proposed experiment
+  sizes are not instructions to automatically run large sweeps.
+
+### Current implementation versus the planned design
+
+At this update, full transfer and exact reference validation run. The pure
+cost-sizing function and optional `--collect-sizing` metadata diagnostic also
+run, but the diagnostic still transfers the full remote table. `BloomFilter`
+remains a placeholder; fixed/cost filter transfer and the three-method comparison
+are pending. Inspect the current code before assuming this snapshot is still
+accurate, and update this paragraph when an assigned change alters that status.
+Never describe planned features or modeled savings as implemented measurements.
+
 ## Scope: support the students, do not finish the assignment
 
 This is a student database project. Work only on the task or GitHub issue the
