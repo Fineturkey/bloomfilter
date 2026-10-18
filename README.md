@@ -47,8 +47,11 @@ The current runner holds the join result in memory; begin with small datasets.
 
 ## Next work
 
-Bloom filtering and cost-selected sizing are intentionally unimplemented. The
-placeholder interfaces raise `NotImplementedError`; no optimized results are claimed.
+Bloom filtering and the cost strategy's transfer integration remain unimplemented.
+The pure sizing function is implemented and tested; see
+[the model and integration notes](docs/cost-sizing.md) for the Section 4.1 equation,
+selectivity assumption, units, rounding, limits, and proposed metadata contract.
+No optimized distributed results are claimed.
 Implement the filter and fixed-size strategy, then integrate cost-selected sizing.
 Keep the same serializer, result
 projection, join destination, byte accounting, and timing boundaries across methods.
