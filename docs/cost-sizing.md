@@ -50,9 +50,9 @@ search or bit array is allocated; work uses a constant number of scalar/log
 operations. Invalid counts, nonfinite numbers, nonpositive width, booleans and
 out-of-range selectivity raise `ValueError`, including on empty input.
 
-## JSON sizing and metadata contract for integration
+## JSON sizing and metadata exchange
 
-Proposed width estimate: stream every remote row through exactly the channel's
+Implemented width estimate: stream every remote row through exactly the channel's
 compact `json.dumps(row, separators=(",", ":")).encode("utf-8")` serializer;
 accumulate length plus one byte for its batch separator, divide by row count.
 This includes key digits, quoting, escaping and UTF-8 encoding, unlike SQLite's
@@ -61,19 +61,24 @@ count and short-circuit before calling the function with a width. Stream the
 scan rather than retaining the entire table. This is a full scan estimate of
 mean row contribution, not an exact prediction of batch/message overhead.
 
-During query timing, the local site should request sizing metadata and the
-remote site should reply with row count and estimated mean row bytes. Count
-both messages and their four-byte framing through the existing `Channel` at
-the local endpoint. Count any exchanged selectivity statistics too. Local
-cardinality comes from local SQL. Include metadata scan/serialization in query
-time. Keep actual application bytes separate from this raw-bit model: JSON
+With `--collect-sizing`, during query timing the local site requests sizing
+metadata and the remote site replies with row count and estimated mean row
+bytes. Both messages and their four-byte framing are counted through `Channel`
+at the local endpoint. Local cardinality comes from local SQL. The remote scan,
+serialization, metadata exchange and size selection are included in query time.
+The `sizing` metrics report the statistics, selectivity assumption, proposed
+bits/hashes and `metadata_application_bytes` (a subset of `application_bytes`,
+not an additional cost to add). `filter_applied` is false: this diagnostic still
+runs full transfer, including for empty tables; an empty side gets a `(0, 0)`
+proposal. No selectivity statistics are exchanged yet.
+Keep actual application bytes separate from this raw-bit model: JSON
 filter encoding, batch envelopes, control messages and framing add bytes.
 Choose filter serialization jointly with Issue 1 before claiming wire optimality.
 
 ## Remaining issue work
 
 Issue 1's `BloomFilter` and shared filter/transfer path are still unimplemented.
-This change does not add a runnable `cost` strategy, metadata messages, or a
+The metadata diagnostic is runnable, but there is no `cost` strategy or
 three-method comparison command. Once that path exists, integrate both fixed
 and cost sizing through it; preserve exact SQL verification and count all
 messages. Extend the existing benchmark to generate one dataset for all three

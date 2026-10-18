@@ -7,6 +7,11 @@ import json
 import struct
 
 
+def encode_json(message):
+    """The shared wire serializer, also used for row-width estimation."""
+    return json.dumps(message, separators=(",", ":")).encode("utf-8")
+
+
 class Channel:
     def __init__(self, connection):
         self.connection = connection
@@ -14,7 +19,7 @@ class Channel:
         self.bytes_received = 0
 
     def send(self, message):
-        body = json.dumps(message, separators=(",", ":")).encode("utf-8")
+        body = encode_json(message)
         packet = struct.pack("!I", len(body)) + body
         self.connection.sendall(packet)
         self.bytes_sent += len(packet)

@@ -52,6 +52,17 @@ The pure sizing function is implemented and tested; see
 [the model and integration notes](docs/cost-sizing.md) for the Section 4.1 equation,
 selectivity assumption, units, rounding, limits, and proposed metadata contract.
 No optimized distributed results are claimed.
+
+To measure the sizing metadata exchange and record a proposed filter size:
+
+```sh
+python -m bloomjoin --rows 100 --collect-sizing --output results/sizing-diagnostic.json
+```
+
+This still runs full transfer. The optional `sizing` metrics record remote JSON
+row width, counts, proposed bits/hashes, and metadata bytes. Metadata exchange
+and scanning are included in query time; metadata bytes are already included
+in total application bytes. The default run does not request these statistics.
 Implement the filter and fixed-size strategy, then integrate cost-selected sizing.
 Keep the same serializer, result
 projection, join destination, byte accounting, and timing boundaries across methods.

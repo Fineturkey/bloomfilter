@@ -6,6 +6,7 @@ import sqlite3
 from time import perf_counter
 from .protocol import Channel
 from .worker import serve
+from .strategies import FilterSize, choose_filter_size
 
 
 PROJECTION = "SELECT l.join_key, l.payload, r.payload FROM records l JOIN incoming r ON l.join_key = r.join_key ORDER BY l.join_key"
@@ -18,7 +19,11 @@ def reference_join(local_path, remote_path):
         return db.execute("SELECT l.join_key, l.payload, r.payload FROM records l JOIN remote.records r ON l.join_key = r.join_key ORDER BY l.join_key").fetchall()
 
 
-def run(local_path, remote_path, strategy="full"):
+def run(local_path, remote_path, strategy="full", *, collect_sizing=False):
+    """Run a verified join; optionally measure metadata and a sizing proposal.
+
+    collect_sizing does not apply a filter or change the full-transfer strategy.
+    """
     if strategy != "full":
         raise NotImplementedError("Bloom strategies are starter issues; only full currently runs")
     context = multiprocessing.get_context("spawn")
@@ -35,6 +40,23 @@ def run(local_path, remote_path, strategy="full"):
                 channel = Channel(connection)
                 db.execute("CREATE TEMP TABLE incoming (join_key INTEGER PRIMARY KEY, payload TEXT NOT NULL)")
                 start = perf_counter()
+                sizing = None
+                if collect_sizing:
+                    before_metadata = channel.bytes_sent + channel.bytes_received
+                    channel.send({"request": "sizing"})
+                    remote_stats = channel.receive()["sizing"]
+                    metadata_bytes = channel.bytes_sent + channel.bytes_received - before_metadata
+                    local_count = db.execute("SELECT COUNT(*) FROM records").fetchone()[0]
+                    if not local_count or not remote_stats["row_count"]:
+                        size = FilterSize(0, 0)
+                    else:
+                        size = choose_filter_size(local_count, remote_stats["row_count"],
+                                                  remote_stats["mean_row_bytes"])
+                    sizing = {"local_count": local_count, **remote_stats,
+                              "selectivity_estimate": 0.0,
+                              "bit_count": size.bit_count, "hash_count": size.hash_count,
+                              "metadata_application_bytes": metadata_bytes,
+                              "filter_applied": False}
                 channel.send({"strategy": strategy})
                 transferred = 0
                 while True:
@@ -55,6 +77,8 @@ def run(local_path, remote_path, strategy="full"):
                     "nonmatching_records": transferred - len(result),
                     "result_rows": len(result),
                 }
+                if sizing is not None:
+                    metrics["sizing"] = sizing
             process.join(timeout=30)
             if process.is_alive() or process.exitcode != 0:
                 raise RuntimeError("Remote worker did not exit successfully")
