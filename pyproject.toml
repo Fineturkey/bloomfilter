@@ -1,0 +1,6 @@
+[project]
+name = "distributed-bloom-join"
+version = "0.1.0"
+description = "SQLite and socket prototype for comparing distributed join strategies"
+requires-python = ">=3.10"
+dependencies = []
