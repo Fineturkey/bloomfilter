@@ -60,3 +60,24 @@ Vary one factor around a baseline and repeat runs; large sweeps are future work.
 Reference: Ramesh, Papapetrou, and Siberski, *Optimizing Distributed Joins with
 Bloom Filters*, ICDCIT 2008, pp. 145-156, DOI: 10.1007/978-3-540-89737-8_15.
 Verify Section 4.1 against the paper before implementing the cost-selected strategy.
+
+## Contributor guidance
+
+Read [AGENT.md](AGENT.md) before working on an issue. Agents must keep changes
+scoped to the assigned task and update relevant tests as they go. `AGENTS.md`
+points to the same rules for agent discovery.
+
+## Benchmark the baseline
+
+```sh
+python -m bloomjoin.benchmark --rows 1000 --overlap 0.1 --payload-bytes 32 --seed 42 --repeats 3 --warmups 1 --output results/benchmark.json
+```
+
+The harness generates temporary databases once and reuses them for all runs.
+Every warmup and measured run must pass exact SQL reference validation. Warmups
+are excluded from the report's measured runs and timing summaries. JSON includes
+raw measurements, configuration, environment, and mean/median/min/max/sample
+standard deviation for query and filter-build times. Benchmark correctness tests
+run with the existing unit-test command; they do not enforce timing thresholds.
+Only `full` is implemented. Adding other strategies remains assigned student work.
+Run larger datasets explicitly; the default is a small local smoke benchmark.
